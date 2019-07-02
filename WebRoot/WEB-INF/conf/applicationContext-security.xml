@@ -1,0 +1,111 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+    xmlns:s="http://www.springframework.org/schema/security"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xmlns:context="http://www.springframework.org/schema/context"
+    xsi:schemaLocation="
+        http://www.springframework.org/schema/beans 
+        http://www.springframework.org/schema/beans/spring-beans-3.1.xsd
+        http://www.springframework.org/schema/security
+        http://www.springframework.org/schema/security/spring-security-3.1.xsd
+        http://www.springframework.org/schema/context 
+        http://www.springframework.org/schema/context/spring-context-3.1.xsd">
+           
+    
+    <!-- 登陆时查询用户、并加载用户所拥有的权限等 -->
+	<bean id="userDetailsService" class="com.dtds.security.UserDetailServiceImpl">
+		<property name="userService" ref="userService"/>
+	</bean>
+	<!-- 用户的密码加密或解密 -->
+	<bean id="passwordEncoder" class="com.dtds.security.MyPasswordEncoder" />
+	
+	<bean id="authenticationProvider" class="org.springframework.security.authentication.dao.DaoAuthenticationProvider">  
+	    <property name="userDetailsService" ref="userDetailsService" />
+	    <property name="hideUserNotFoundExceptions" value="false" />
+	    <property name="passwordEncoder" ref="passwordEncoder"/>
+	</bean>
+
+	<!-- 认证配置, 使用userDetailsService提供的用户信息 -->
+	<s:authentication-manager alias="authenticationManager">
+		<s:authentication-provider ref="authenticationProvider"/>
+	</s:authentication-manager>
+	
+	
+	<!-- 资源源数据定义，将所有的资源和权限对应关系建立起来，即定义某一资源可以被哪些角色去访问。 -->
+	<bean id="mySecurityMetadataSource" class="com.dtds.security.InvocationSecurityMetadataSourceServiceImpl">
+		<property name="userService" ref="userService"/>
+	</bean>
+		
+	
+	<!-- 访问决策器，决定某个用户具有的角色，是否有足够的权限去访问某个资源。 -->
+	<bean id="accessDecisionManager" class="com.dtds.security.MyAccessDecisionManager"/>
+	
+	<!-- 一个自定义的filter，必须包含authenticationManager, accessDecisionManager,securityMetadataSource三个属性。 -->
+	<bean id="myFilter" class="com.dtds.security.MyFilterSecurityInterceptor">
+		<!-- 资源数据源 -->
+		<property name="securityMetadataSource" ref="mySecurityMetadataSource" />
+		<!-- 认证管理器 -->
+		<property name="authenticationManager" ref="authenticationManager" />
+		<!-- 访问决策器 -->
+		<property name="accessDecisionManager" ref="accessDecisionManager" />
+	</bean>
+
+
+
+
+	<!-- 重写登陆验证 -->
+	<bean id="loginFilter" class="com.dtds.security.MyUsernamePasswordAuthenticationFilter">
+		<!-- 处理登陆的Action -->
+		<property name="filterProcessesUrl" value="/j_spring_security_check"></property>
+		<!-- 验证成功后的跳转 -->
+		<property name="authenticationSuccessHandler" ref="loginLogAuthenticationSuccessHandler"></property>
+		<!-- 验证失败后的处理 -->
+		<property name="authenticationFailureHandler" ref="simpleUrlAuthenticationFailureHandler"></property>
+		<!-- 认证管理 -->
+		<property name="authenticationManager" ref="authenticationManager"></property>
+	</bean>
+	<!-- 登陆成功 -->
+	<bean id="loginLogAuthenticationSuccessHandler" class="org.springframework.security.web.authentication.SavedRequestAwareAuthenticationSuccessHandler">
+		<property name="alwaysUseDefaultTargetUrl" value="true"/>
+		<property name="defaultTargetUrl" value="/index.jsp" />
+		<property name="targetUrlParameter" value="redirectTo" />
+	</bean>
+	<!-- 登陆失败 -->
+	<bean id="simpleUrlAuthenticationFailureHandler" class="org.springframework.security.web.authentication.SimpleUrlAuthenticationFailureHandler">
+		<!-- 可以配置相应的跳转方式。属性forwardToDestination为true采用forward false为sendRedirect -->
+		<property name="defaultFailureUrl" value="/login.jsp"></property>
+	</bean>
+	<!-- 未登录的切入点 -->
+	<bean id="authenticationProcessingFilterEntryPoint" class="org.springframework.security.web.authentication.LoginUrlAuthenticationEntryPoint">
+		<property name="loginFormUrl" value="/login.jsp"></property>
+	</bean>
+	
+	<!-- Spring Security 认证切入点 -->
+	<bean id="loginUrlEntryPoint" class="org.springframework.security.web.authentication.LoginUrlAuthenticationEntryPoint">
+		<property name="loginFormUrl" value="/login.jsp"></property>
+	</bean>
+	
+	<!-- 不要过滤图片等静态资源，其中**代表可以跨越目录，*不可以跨越目录。 -->
+	<s:http pattern="/**/*.jpg" security="none"/>
+	<s:http pattern="/**/*.png" security="none"/>
+	<s:http pattern="/**/*.gif" security="none"/>
+	<s:http pattern="/**/*.css" security="none"/>
+	<s:http pattern="/**/*.js" security="none"/>
+	<s:http pattern="/login.jsp" security="none"/>
+	
+	<s:http auto-config="false" use-expressions="true" entry-point-ref="loginUrlEntryPoint" access-denied-page="/error.jsp">
+		<!-- 权限判断、处理的filter链 -->
+		<s:custom-filter before="FILTER_SECURITY_INTERCEPTOR" ref="myFilter"/>
+		
+		<!-- 处理用户登陆时，用户名和密码判断的filter(重要) -->
+		<s:custom-filter position="FORM_LOGIN_FILTER" ref="loginFilter"/>
+		
+		<!-- 检测失效的sessionId,超时时定位到另外一个URL -->
+		<s:session-management invalid-session-url="/sessionTimeout.jsp" />
+		
+		<!-- 登出 -->
+		<s:logout logout-url="/j_spring_security_logout" invalidate-session="true" logout-success-url="/index.jsp" />
+	</s:http>
+	  
+
+</beans>

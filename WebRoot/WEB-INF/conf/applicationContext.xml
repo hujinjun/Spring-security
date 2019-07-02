@@ -1,0 +1,106 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:context="http://www.springframework.org/schema/context"
+	xmlns:aop="http://www.springframework.org/schema/aop" xmlns:tx="http://www.springframework.org/schema/tx"
+	xsi:schemaLocation="http://www.springframework.org/schema/beans
+   		http://www.springframework.org/schema/beans/spring-beans-3.1.xsd
+   		http://www.springframework.org/schema/context
+        http://www.springframework.org/schema/context/spring-context-3.1.xsd
+        http://www.springframework.org/schema/aop
+        http://www.springframework.org/schema/aop/spring-aop-3.1.xsd
+        http://www.springframework.org/schema/tx 
+        http://www.springframework.org/schema/tx/spring-tx-3.1.xsd">
+
+	<context:annotation-config />
+	<context:component-scan base-package="com.dtds" />
+	<aop:aspectj-autoproxy />
+	<tx:annotation-driven transaction-manager="txManager" />
+
+
+
+	<!-- spring中关于hibernate的配置 -->
+	<bean
+		class="org.springframework.beans.factory.config.PropertyPlaceholderConfigurer">
+		<property name="locations">
+			<value>/WEB-INF/conf/jdbc.properties</value>
+		</property>
+	</bean>
+
+
+	<bean id="dataSource" class="org.apache.commons.dbcp.BasicDataSource"
+		destroy-method="close">
+		<property name="driverClassName" value="${driver}" />
+		<property name="url" value="${url}" />
+		<property name="username" value="${user}" />
+		<property name="password" value="${pwd}" />
+	</bean>
+	<bean id="sessionFactory"
+		class="org.springframework.orm.hibernate3.annotation.AnnotationSessionFactoryBean">
+		<property name="dataSource">
+			<ref bean="dataSource" />
+		</property>
+		<property name="packagesToScan">
+			<list>
+				<!--检索com.frinder.self.entity下所有类的annotation，生成相应的需要 -->
+				<value>com.dtds.entity</value>
+			</list>
+		</property>
+		<property name="hibernateProperties">
+			<props>
+				<prop key="hibernate.dialect">
+					org.hibernate.dialect.OracleDialect
+				</prop>
+				<!-- 用于测试，在控制台现实sql语句 -->
+				<prop key="hibernate.format_sql">true</prop>
+				<!-- <prop key="hibernate.show_sql">true</prop> -->
+				<prop key="hibernate.use_sql_comments">true</prop>
+				<!-- 设置成hibernate3.0解析器 -->
+				<prop key="hibernate.query.factory_class">
+					org.hibernate.hql.ast.ASTQueryTranslatorFactory
+				</prop>
+				<!-- 是否启动二级缓存查询 -->
+				<prop key="hibernate.cache.use_second_level_cache">true</prop>
+				<prop key="cache.provider_class">org.hibernate.cache.EhCacheRegionFactory</prop>
+				<!-- cglib反序列化 ，cglib是用来在Hibernate中动态生成PO字节码的，打开优化可以加快字节码构造的速度 -->
+				<prop key="hibernate.cglib.use_reflection_optimizer">true</prop>
+				<prop key="hibernate.hbm2ddl.auto">update</prop>
+				<prop key="hibernate.current_session_context_class">thread</prop>
+			</props>
+		</property>
+	</bean>
+
+
+	<bean name="hibernateTemplate" class="org.springframework.orm.hibernate3.HibernateTemplate">
+		<property name="sessionFactory" ref="sessionFactory" />
+	</bean>
+
+
+	<!-- 定义事务管理配置 -->
+	<bean id="txManager"
+		class="org.springframework.jdbc.datasource.DataSourceTransactionManager">
+		<property name="dataSource" ref="dataSource" />
+	</bean>
+
+	<!-- spring通知 -->
+	<tx:advice id="txAdvice" transaction-manager="txManager">
+		<tx:attributes>
+			<tx:method name="get*" read-only="true" />
+			<tx:method name="add*" propagation="REQUIRED" />
+			<tx:method name="update*" propagation="REQUIRED" />
+			<tx:method name="delete*" propagation="REQUIRED" />
+			<tx:method name="select*" read-only="true" />
+			<tx:method name="find*" read-only="true" />
+			<tx:method name="login*" propagation="REQUIRED" />
+			<tx:method name="page*" read-only="true" />
+		</tx:attributes>
+	</tx:advice>
+
+	<!-- 定义切面，管理事务 -->
+	<aop:config>
+		<aop:pointcut expression="execution (public * com.dtds.service.*.*(..))"
+			id="service" />
+		<aop:advisor advice-ref="txAdvice" pointcut-ref="service" />
+	</aop:config>
+
+
+</beans>
